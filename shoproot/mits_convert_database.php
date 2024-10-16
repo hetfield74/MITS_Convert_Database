@@ -15,6 +15,13 @@
 include('includes/application_top.php');
 set_time_limit(0);
 
+$action = $_POST['action'] ?? ($_GET['action'] ?? '');
+
+if ($action == 'delfile') {
+    unlink(DIR_FS_DOCUMENT_ROOT . basename($PHP_SELF));
+    xtc_redirect(xtc_href_link(FILENAME_DEFAULT), 'NONSSL');
+}
+
 $characterset_array = array(
   array('id' => 'utf8mb4_unicode_ci', 'text' => 'utf8mb4_unicode_ci (empfohlen)'),
   array('id' => 'utf8mb4_general_ci', 'text' => 'utf8mb4_general_ci (empfohlen)'),
@@ -59,8 +66,6 @@ if (isset($_POST['collation'])) {
     $db_collation = $db_characterset . '_general_ci';
 }
 
-$action = $_POST['action'] ?? '';
-
 $output_first = '
 <!doctype html>
 <html>
@@ -98,28 +103,29 @@ $output_first = '
       <img src="https://www.merz-it-service.de/images/logo.png" border="0" alt="MerZ IT-SerVice" title="Logo von MerZ IT-SerVice" style="margin:0 auto;display:inline-block;max-width:100%;height:auto;" />
     </a>
   </div>
-  <h1 style="padding:6px;color:#444;font-size:18px;">MITS Datenbankkonvertierung v1.0</h1>';
+  <h1 style="padding:6px;color:#444;font-size:18px;">MITS Datenbankkonvertierung v1.1</h1>';
 
 $output = "";
 $message = '';
 
-$output = xtc_draw_form('convert_database', xtc_href_link(basename($PHP_SELF), xtc_get_all_get_params(), 'SSL')).xtc_draw_hidden_field('action', 'convert');
-if ($action == '') {
-    $output .= '<p>
+if (isset($_SESSION['customers_status']['customers_status']) && $_SESSION['customers_status']['customers_status'] == '0') {
+    $output = xtc_draw_form('convert_database', xtc_href_link(basename($PHP_SELF), xtc_get_all_get_params(), 'SSL')) . xtc_draw_hidden_field('action', 'convert');
+    if ($action == '') {
+        $output .= '<p>
 Zur Konvertierung der Datenbank <i>' . DB_DATABASE . '</i> w&auml;hlen sie bitte die gew&uuml;nschte Collation und die gew&uuml;nschte Engine aus. 
 Entsprechend der aktuellen Angaben in der configure.php (<i>includes/configure.php</i> und/oder <i>includes/local/configure.php</i>) sind die Auswahlm&ouml;glichkeiten bereits vorbelegt. 
 W&uuml;nschen Sie abweichende &Auml;nderungen an der Datenbank, dann denken sie unbedingt daran, nach erfolgter Konvertierung die configure.php anzupassen!
 </p>';
-}
-$output .= '<div class="options">';
-$output .= '<div class="option"><label for="collation">Collation:</label> ' . xtc_draw_pull_down_menu('collation', $characterset_array, $db_collation, 'id="collation"') . '</div>';
-$output .= '<div class="option"><label for="engine">Engine:</label> ' . xtc_draw_pull_down_menu('engine', $engine_array, $db_engine, 'id="engine"') . '</div>';
-$output .= '</div>';
-$sql = "SHOW TABLES";
-$result = xtc_db_query("SHOW TABLES");
-if (xtc_db_num_rows($result) > 0) {
-    $output .= "<input type=\"submit\" class=\"button\" value=\"Datenbankkonvertierung starten &raquo;\">";
-    $output .= "
+    }
+    $output .= '<div class="options">';
+    $output .= '<div class="option"><label for="collation">Collation:</label> ' . xtc_draw_pull_down_menu('collation', $characterset_array, $db_collation, 'id="collation"') . '</div>';
+    $output .= '<div class="option"><label for="engine">Engine:</label> ' . xtc_draw_pull_down_menu('engine', $engine_array, $db_engine, 'id="engine"') . '</div>';
+    $output .= '</div>';
+    $sql = "SHOW TABLES";
+    $result = xtc_db_query("SHOW TABLES");
+    if (xtc_db_num_rows($result) > 0) {
+        $output .= "<input type=\"submit\" class=\"button\" value=\"Datenbankkonvertierung starten &raquo;\">";
+        $output .= "
   <table class=\"table-scrollable\">
     <thead>
       <tr>
@@ -127,87 +133,97 @@ if (xtc_db_num_rows($result) > 0) {
         <th class=\"center\">Start-Collation</th>
         <th class=\"center\">Start-Engine</th>
 ";
-    if ($action == 'convert') {
-        $output .= "
+        if ($action == 'convert') {
+            $output .= "
         <th class=\"center\">Ziel-Collation</th>
         <th class=\"center\">Collation-Ergebnis</th>
         <th class=\"center\">Ziel-Engine</th>
         <th class=\"center\">Engine-Ergebnis</th>
 ";
-    }
-    $output .= "
+        }
+        $output .= "
       </tr>
     </thead>
     <tbody>
 ";
 
-    while ($row = xtc_db_fetch_array($result)) {
-        $table_name = $row['Tables_in_' . DB_DATABASE];
+        while ($row = xtc_db_fetch_array($result)) {
+            $table_name = $row['Tables_in_' . DB_DATABASE];
 
-        $check_engine = xtc_db_query("SHOW TABLE STATUS WHERE Name = '" . $table_name . "'");
-        $engine = xtc_db_fetch_array($check_engine);
-        $table_engine = $engine['Engine'] ?? '';
-        $table_collation = $engine['Collation'] ?? '';
+            $check_engine = xtc_db_query("SHOW TABLE STATUS WHERE Name = '" . $table_name . "'");
+            $engine = xtc_db_fetch_array($check_engine);
+            $table_engine = $engine['Engine'] ?? '';
+            $table_collation = $engine['Collation'] ?? '';
 
-        $output .= "<tr><td><strong>" . $table_name . "</strong></td><td class=\"center\">" . $table_collation . "</td><td class=\"center\">" . $table_engine . "</td>";
+            $output .= "<tr><td><strong>" . $table_name . "</strong></td><td class=\"center\">" . $table_collation . "</td><td class=\"center\">" . $table_engine . "</td>";
 
-        if ($action == 'convert' && !empty($table_name) && !empty($table_engine) && !empty($table_collation)) {
-            $message = '<div class="messages"><p class="success_message">Die Konvertierung wurde mit folgendem Ergebnis durchgef&uuml;hrt:</p><ul class="message_list">';
+            if ($action == 'convert' && !empty($table_name) && !empty($table_engine) && !empty($table_collation)) {
+                $message = '<div class="messages"><p class="success_message">Die Konvertierung wurde mit folgendem Ergebnis durchgef&uuml;hrt:</p><ul class="message_list">';
 
-            if ($table_collation != $db_collation) {
-                if (xtc_db_query("ALTER TABLE `" . $table_name . "` CONVERT TO CHARACTER SET " . $db_characterset . " COLLATE " . $db_collation)) {
-                    $collation_changed = true;
-                    $output .= "<td class=\"center green\">" . $db_collation . "</td><td class=\"center green\">konvertiert</td>";
+                if ($table_collation != $db_collation) {
+                    if (xtc_db_query("ALTER TABLE `" . $table_name . "` CONVERT TO CHARACTER SET " . $db_characterset . " COLLATE " . $db_collation)) {
+                        $collation_changed = true;
+                        $output .= "<td class=\"center green\">" . $db_collation . "</td><td class=\"center green\">konvertiert</td>";
+                    } else {
+                        $collation_changed = false;
+                        $output .= "<td class=\"center red\">" . $db_collation . "</td><td class=\"center red\">fehlgeschlagen</td>";
+                    }
                 } else {
-                    $collation_changed = false;
-                    $output .= "<td class=\"center red\">" . $db_collation . "</td><td class=\"center red\">fehlgeschlagen</td>";
+                    $output .= "<td class=\"center black\">" . $table_collation . "</td><td class=\"center black\">keine &Auml;nderung</td>";
                 }
-            } else {
-                $output .= "<td class=\"center black\">" . $table_collation . "</td><td class=\"center black\">keine &Auml;nderung</td>";
+
+                if ($table_engine != $db_engine) {
+                    if (xtc_db_query("ALTER TABLE `" . $table_name . "` ENGINE = " . $db_engine)) {
+                        $engine_changed = true;
+                        $output .= "<td class=\"center green\">" . $db_engine . "</td><td class=\"center green\">konvertiert</td>";
+                    } else {
+                        $engine_changed = false;
+                        $output .= "<td class=\"center red\">" . $db_engine . "</td><td class=\"center red\">fehlgeschlagen</td>";
+                    }
+                } else {
+                    $output .= "<td class=\"center black\">" . $table_engine . "</td><td class=\"center black\">keine &Auml;nderung</td>";
+                }
             }
 
-            if ($table_engine != $db_engine) {
-                if (xtc_db_query("ALTER TABLE `" . $table_name . "` ENGINE = " . $db_engine)) {
-                    $engine_changed = true;
-                    $output .= "<td class=\"center green\">" . $db_engine . "</td><td class=\"center green\">konvertiert</td>";
-                } else {
-                    $engine_changed = false;
-                    $output .= "<td class=\"center red\">" . $db_engine . "</td><td class=\"center red\">fehlgeschlagen</td>";
-                }
+            $output .= "</tr>";
+        }
+
+        if ($action == 'convert') {
+            if (xtc_db_query("ALTER DATABASE `" . DB_DATABASE . "` CHARACTER SET " . $db_characterset . " COLLATE " . $db_collation)) {
+                $message .= '<li class="green">Die Collation wurde auf ' . $db_collation . ' gesetzt und der Zeichensatz wurde auf ' . $db_characterset . ' ge&auml;ndert!</li>';
             } else {
-                $output .= "<td class=\"center black\">" . $table_engine . "</td><td class=\"center black\">keine &Auml;nderung</td>";
+                $message .= '<li class="red">Die Collation und der Zeichensatz konnten nicht ge&auml;ndert werden!</li>';
             }
 
+            if (xtc_db_query("SET GLOBAL default_storage_engine = " . $db_engine)) {
+                $message .= '<li class="green">Die Engine der Datenbank wurde auf ' . $db_engine . ' ge&auml;ndert!</li>';
+            } else {
+                $message .= '<li class="red">Die Engine der Datenbank konnte nicht auf ' . $db_engine . ' ge&auml;ndert werden!</li>';
+            }
+
+            $charset_notice = defined(
+              'DB_SERVER_CHARSET'
+            ) && DB_SERVER_CHARSET != $db_characterset ? '<span class="red">Der Zeichensatz bei DB_SERVER_CHARSET muss in der includes/configure.php angepasst werden auf ' . $db_characterset . '!</span>' : 'Der Zeichensatz stimmt mit der Angabe in der includes/configure.php &uuml;berein!';
+            $engine_notice = defined(
+              'DB_SERVER_ENGINE'
+            ) && DB_SERVER_ENGINE != $db_engine ? '<span class="red">Der Datenbankengine bei DB_SERVER_ENGINE muss in der includes/configure.php angepasst werden auf ' . $db_engine . '!</span>' : 'Der Datenbankengine stimmt mit der Angabe in der includes/configure.php &uuml;berein!';
+            $message .= '</ul><p>Bitte beachten sie unbedingt folgende Hinweise:<br>' . $charset_notice . '<br>' . $engine_notice . '</p></div>';
         }
 
-        $output .= "</tr>";
+        $output .= "</tbody></table>";
+        $output .= "<input type=\"submit\" class=\"button\" value=\"Datenbankkonvertierung starten &raquo;\"></form>";
+    } else {
+        $output .= "<p class='error_message'>Keine Tabellen gefunden!</p>";
     }
-
-    if ($action == 'convert') {
-        if (xtc_db_query("ALTER DATABASE `" . DB_DATABASE . "` CHARACTER SET " . $db_characterset . " COLLATE " . $db_collation)) {
-            $message .= '<li class="green">Die Collation wurde auf ' . $db_collation . ' gesetzt und der Zeichensatz wurde auf ' . $db_characterset . ' ge&auml;ndert!</li>';
-        } else {
-            $message .= '<li class="red">Die Collation und der Zeichensatz konnten nicht ge&auml;ndert werden!</li>';
-        }
-
-        if (xtc_db_query("SET GLOBAL default_storage_engine = " . $db_engine)) {
-            $message .= '<li class="green">Die Engine der Datenbank wurde auf ' . $db_engine . ' ge&auml;ndert!</li>';
-        } else {
-            $message .= '<li class="red">Die Engine der Datenbank konnte nicht auf ' . $db_engine . ' ge&auml;ndert werden!</li>';
-        }
-
-        $charset_notice = defined('DB_SERVER_CHARSET') && DB_SERVER_CHARSET != $db_characterset ? '<span class="red">Der Zeichensatz bei DB_SERVER_CHARSET muss in der includes/configure.php angepasst werden auf ' . $db_characterset . '!</span>' : 'Der Zeichensatz stimmt mit der Angabe in der includes/configure.php &uuml;berein!';
-        $engine_notice =  defined('DB_SERVER_ENGINE') && DB_SERVER_ENGINE != $db_engine ? '<span class="red">Der Datenbankengine bei DB_SERVER_ENGINE muss in der includes/configure.php angepasst werden auf ' . $db_engine . '!</span>' : 'Der Datenbankengine stimmt mit der Angabe in der includes/configure.php &uuml;berein!';
-        $message .= '</ul><p>Bitte beachten sie unbedingt folgende Hinweise:<br>' . $charset_notice . '<br>' . $engine_notice .'</p></div>';
-    }
-
-    $output .= "</tbody></table>";
-    $output .= "<input type=\"submit\" class=\"button\" value=\"Datenbankkonvertierung starten &raquo;\">";
 } else {
-    $output .= "<p class='error_message'>Keine Tabellen gefunden!</p>";
+    $output .= "
+  <p class='error_message'>Sie m&uuml;ssen als Administrator angemeldet sein, damit sie dieses Modul nutzen k&ouml;nnen!</p>
+  <a class=\"button\" href=\"" . xtc_href_link(FILENAME_LOGIN, '', 'SSL') . "\">Zur Anmeldung &raquo;</a>
+  ";
 }
-$output .= "</form>
-      <a class=\"button\" href=\"" . basename($PHP_SELF) . "\">Zur&uuml;ck zum Modul &raquo;</a>
+$output .= "
+      <a class=\"button\" href=\"" . xtc_href_link(basename($PHP_SELF), '', 'SSL') . "\">Zur&uuml;ck zum Modul &raquo;</a>
+      <a class=\"button\" href=\"" . xtc_href_link(basename($PHP_SELF), 'action=delfile', 'SSL') . "\">Modul vom Server l&ouml;schen &raquo;</a>
       <p style=\"text-align:center;padding:6px;color:#555;font-size:11px;margin-top:50px;\"> 
         &copy; by <a href=\"https://www.merz-it-service.de/\">
         <span style=\"padding:2px;background:#ffe;color:#6a9;font-weight:bold;\">Hetfield (MerZ IT-SerVice)</span>
