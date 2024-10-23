@@ -36,10 +36,10 @@ $characterset_array = array(
 
 $engine_array = array(
   array('id' => 'InnoDB', 'text' => 'InnoDB (empfohlen, wird bei allen utf8mb4 Zeichens&auml;tzen automatisch gesetzt)'),
-  array('id' => 'MyISAM', 'text' => 'MyISAM'),
+  array('id' => 'MyISAM', 'text' => 'MyISAM (nicht bei utf8mb4 Zeichens&auml;tzen'),
 );
 
-$db_engine = isset($_POST['engine']) ? xtc_db_input($_POST['engine']) : (defined('DB_SERVER_ENGINE') ? DB_SERVER_ENGINE : 'InnoDB');
+$db_engine = isset($_POST['engine']) ? xtc_db_input($_POST['engine']) : (defined('DB_SERVER_ENGINE') ? DB_SERVER_ENGINE : 'MyISAM');
 
 if (isset($_POST['collation'])) {
     $db_collation = xtc_db_input($_POST['collation']);
@@ -62,7 +62,7 @@ if (isset($_POST['collation'])) {
             break;
     }
 } else {
-    $db_characterset = defined('DB_SERVER_CHARSET') ? DB_SERVER_CHARSET : 'utf8mb4';
+    $db_characterset = defined('DB_SERVER_CHARSET') ? DB_SERVER_CHARSET : 'utf8';
     $db_collation = $db_characterset . '_general_ci';
 }
 
